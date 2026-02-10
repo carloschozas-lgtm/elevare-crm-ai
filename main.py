@@ -9,34 +9,11 @@ from dotenv import load_dotenv
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# FUNCIÓN ROBUSTA: Sistema de selección de modelo con respaldo
-def obtener_modelo_activo():
-    # Lista de prioridades: Intenta el más rápido primero, luego los respaldos
-    modelos_a_probar = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.0-pro', 'gemini-pro']
-    
-    print(f"Probando disponibilidad de modelos IA...")
-    for nombre_modelo in modelos_a_probar:
-        try:
-            # Intentamos instanciar y generar un "Hola" simple para ver si responde
-            modelo = genai.GenerativeModel(nombre_modelo)
-            modelo.generate_content("Test de conexión")
-            print(f"--> ¡Conectado con éxito a {nombre_modelo}!")
-            return modelo
-        except Exception:
-            print(f"--> {nombre_modelo} no disponible, probando siguiente...")
-            continue
-    
-    # Si todo falla, devolvemos None (el código manejará el error sin caerse)
-    return None
+# Usamos el modelo estándar. Al actualizar Python a 3.10 en el workflow, esto funcionará.
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Instanciamos el modelo ganador
-model = obtener_modelo_activo()
-
-# 2. Inteligencia de Negocio (Prompt Elevare)
+# 2. IA Generativa (Prompt Elevare)
 def analizar_lead(datos_lead):
-    if not model:
-        return "Estimado cliente, hemos recibido sus datos y un consultor lo contactará pronto. (Error: Sistema IA en mantenimiento)"
-
     system_instruction = """
     Eres el Asistente IA de Elevare Consulting.
     Analiza prospectos para CORFO 'Desarrolla Inversión'.
@@ -55,14 +32,14 @@ def analizar_lead(datos_lead):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Estimado cliente, gracias por su interés. Un consultor revisará su caso. (Detalle técnico: {str(e)})"
+        # Si falla la IA, devolvemos el error técnico para verlo en el correo
+        return f"Error generando IA: {str(e)}"
 
 # 3. Validación Técnica
 def evaluar_aptitud_corfo(datos_lead):
     es_apto = True
     observaciones = []
     
-    # Validaciones flexibles para evitar errores de tipeo
     region = datos_lead.get("region", "").lower()
     if "biobío" not in region and "biobio" not in region:
         es_apto = False
@@ -77,7 +54,7 @@ def evaluar_aptitud_corfo(datos_lead):
 
     return {"apto": es_apto, "notas": observaciones}
 
-# 4. Envío de Correo (Blindado)
+# 4. Envío de Correo (Ya validado y funcionando)
 def enviar_correo_crm(destinatario, asunto, cuerpo):
     msg = EmailMessage()
     msg.set_content(cuerpo)
@@ -104,18 +81,13 @@ if __name__ == "__main__":
         "correo": os.getenv("EMAIL_USER") 
     }
 
-    print("--- 1. Evaluando Aptitud ---")
-    evaluacion = evaluar_aptitud_corfo(lead_test)
-    print(f"Estado: {evaluacion}")
-
-    print("--- 2. Generando Propuesta ---")
+    print("--- 1. Generando Propuesta con IA ---")
     cuerpo = analizar_lead(lead_test)
 
-    print("--- 3. Enviando Correo ---")
+    print("--- 2. Enviando Correo ---")
     resultado = enviar_correo_crm(lead_test["correo"], f"Propuesta CORFO {lead_test['empresa']}", cuerpo)
     
     print(f"RESULTADO FINAL: {resultado}")
     
-    # Forzar error en GitHub solo si el correo NO salió
     if "ERROR_SMTP" in resultado:
         sys.exit(1)
