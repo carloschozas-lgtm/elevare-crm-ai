@@ -1,66 +1,55 @@
 import os
 import smtplib
+import sys # Vital para reportar errores a GitHub
 import google.generativeai as genai
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
-# 1. Configuración de Entorno
+# 1. Configuración
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
-# CORRECCIÓN FINAL: Usamos el nombre de modelo estándar para máxima estabilidad
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 2. Inteligencia de Negocio (Prompt depurado)
+# 2. IA Generativa (Prompt Elevare)
 def analizar_lead(datos_lead):
     system_instruction = """
     Eres el Asistente IA de Elevare Consulting.
-    Analiza prospectos para el fondo CORFO 'Desarrolla Inversión'.
-    
-    REGLAS DE NEGOCIO:
-    1. Cofinanciamiento: 60% del proyecto.
-    2. Tope de Subsidio: $50 millones.
-    3. Foco Geográfico: Región del Biobío.
-    4. Garantía: Ofrecer siempre la 'Repostulación Gratuita'.
-    5. Casos de Éxito:
-       - Si es Metalmecánico: Mencionar a Chirino Steel SpA ($61.2MM).
-       - Si es Energía/Otros: Mencionar Ingeniería Quantum ($32.5MM).
-    6. Firma: Carlos Chozas O., Ingeniero Civil Industrial (MBA).
+    Analiza prospectos para CORFO 'Desarrolla Inversión'.
+    REGLAS:
+    1. Cofinanciamiento: 60%.
+    2. Tope: $50 millones.
+    3. Foco: Región del Biobío.
+    4. Casos de Éxito:
+       - Metalmecánico: Chirino Steel SpA ($61.2MM).
+       - Otros: Ingeniería Quantum ($32.5MM).
+    5. Firma: Carlos Chozas O.
     """
-    
-    prompt = f"{system_instruction}\n\nAnaliza este lead y redacta el correo de propuesta: {datos_lead}"
-    
+    prompt = f"{system_instruction}\n\nRedacta propuesta para: {datos_lead}"
     try:
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Error generando respuesta IA: {str(e)}"
+        return f"Error IA: {str(e)}"
 
-# 3. Validación Técnica (Matemática limpia sin caracteres extraños)
+# 3. Validación Técnica
 def evaluar_aptitud_corfo(datos_lead):
     es_apto = True
     observaciones = []
-
-    # Validación Regional
-    region_cliente = datos_lead.get("region", "")
-    if "Biobío" not in region_cliente and "Biobio" not in region_cliente:
+    
+    if "Biobío" not in datos_lead.get("region", "") and "Biobio" not in datos_lead.get("region", ""):
         es_apto = False
-        observaciones.append("Empresa fuera de la región foco (Biobío).")
+        observaciones.append("Fuera de región Biobío.")
 
-    # Validación Financiera
     try:
-        # Aseguramos que la inversión se trate como número puro
         inversion = float(datos_lead.get("inversion", 0))
-        subsidio_estimado = inversion * 0.60
-        
-        if subsidio_estimado > 50000000:
-            observaciones.append(f"El subsidio calculado (${subsidio_estimado:,.0f}) supera el tope de $50MM.")
-    except ValueError:
-        observaciones.append("Error en el formato del monto de inversión.")
+        if (inversion * 0.60) > 50000000:
+            observaciones.append("Subsidio supera tope $50MM.")
+    except:
+        observaciones.append("Error en monto.")
 
     return {"apto": es_apto, "notas": observaciones}
 
-# 4. Motor de Envío de Correos
+# 4. Envío de Correo (Con Reporte de Error Real)
 def enviar_correo_crm(destinatario, asunto, cuerpo):
     msg = EmailMessage()
     msg.set_content(cuerpo)
@@ -69,38 +58,39 @@ def enviar_correo_crm(destinatario, asunto, cuerpo):
     msg['To'] = destinatario
 
     try:
+        print(f"Conectando a servidor SMTP...")
+        # Aquí se usa la Contraseña de Aplicación que pusiste en Secrets
         with smtplib.SMTP_SSL(os.getenv("EMAIL_HOST"), 465) as smtp:
             smtp.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
             smtp.send_message(msg)
-        return "Correo enviado exitosamente"
+        return "EXITO"
     except Exception as e:
-        return f"Fallo en el envío: {str(e)}"
+        # Imprime el error para que lo leamos en los logs
+        print(f"ERROR DETALLADO: {e}")
+        return "FALLO"
 
-# 5. Ejecución de Prueba
+# 5. Ejecución
 if __name__ == "__main__":
-    # Datos de prueba (Caso Real: Maestranza Biobío)
     lead_test = {
         "empresa": "Maestranza Biobío Limitada",
         "representante": "Roberto González",
         "rubro": "Metalmecánico",
         "inversion": 60000000,
         "region": "Región del Biobío",
-        "correo": os.getenv("EMAIL_USER") # Se envía a tu propio correo para validar
+        "correo": os.getenv("EMAIL_USER") 
     }
 
-    print(f"--- Iniciando CRM para {lead_test['empresa']} ---")
-    
-    # Paso 1: Evaluar
+    print("--- 1. Evaluando ---")
     evaluacion = evaluar_aptitud_corfo(lead_test)
-    print(f"Estado de Aptitud: {'APTO' if evaluacion['apto'] else 'NO APTO'}")
     
-    # Paso 2: Redactar
-    print("Generando propuesta con IA...")
-    propuesta = analizar_lead(lead_test)
+    print("--- 2. Generando Texto ---")
+    cuerpo = analizar_lead(lead_test)
+
+    print("--- 3. Enviando Correo ---")
+    resultado = enviar_correo_crm(lead_test["correo"], f"Test CORFO {lead_test['empresa']}", cuerpo)
     
-    # Paso 3: Enviar
-    print("Enviando correo...")
-    asunto = f"Oportunidad CORFO para {lead_test['empresa']}"
-    resultado = enviar_correo_crm(lead_test["correo"], asunto, propuesta)
-    
-    print(f"Resultado final: {resultado}")
+    print(f"RESULTADO FINAL: {resultado}")
+
+    # SI FALLÓ, OBLIGAMOS A GITHUB A MARCAR ERROR ROJO
+    if resultado == "FALLO":
+        sys.exit(1)
