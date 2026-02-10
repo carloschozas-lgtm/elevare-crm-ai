@@ -1,20 +1,42 @@
 import os
+import smtplib
+from email.message import EmailMessage
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# 1. Cargar configuración segura
+# 1. Configuración Inicial
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
-# 2. Configurar el modelo (Gemini 1.5 Flash para eficiencia)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
+# 2. Función de Inteligencia (IA)
 def analizar_lead(datos_lead):
-    # Instrucción maestra basada en el Brochure 2025
+    # Basado en Brochure 2025 y validaciones previas
     system_instruction = """
-    Eres el Asistente IA de Elevare Consulting. Tu tarea es analizar prospectos para CORFO.
-    REGLAS: Cofinanciamiento 60%, Tope $50MM, Foco en Activos Fijos y Región del Biobío.
+    Eres el Asistente IA de Elevare Consulting. 
+    Analiza prospectos para CORFO 'Desarrolla Inversión'.
+    Reglas: 60% cofinanciamiento, Tope $50MM, Foco Biobío.
     """
     prompt = f"{system_instruction}\n\nAnaliza este lead: {datos_lead}"
     response = model.generate_content(prompt)
     return response.text
+
+# 3. La función que me consultaste (Envío de Correo)
+def enviar_correo_crm(destinatario, asunto, cuerpo):
+    msg = EmailMessage()
+    msg.set_content(cuerpo)
+    msg['Subject'] = asunto
+    msg['From'] = os.getenv("EMAIL_USER")
+    msg['To'] = destinatario
+
+    # Usa los Secrets que configuramos: EMAIL_HOST, EMAIL_USER, EMAIL_PASSWORD
+    with smtplib.SMTP_SSL(os.getenv("EMAIL_HOST"), 465) as smtp:
+        smtp.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
+        smtp.send_message(msg)
+    return "Correo enviado con éxito"
+
+# 4. Ejemplo de ejecución lógica
+# Aquí es donde el CRM une las piezas para leads como Roberto González
+# lead_ejemplo = {...} 
+# respuesta = analizar_lead(lead_ejemplo)
+# enviar_correo_crm("cliente@correo.com", "Propuesta Elevare", respuesta)
