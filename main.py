@@ -4,55 +4,63 @@ import google.generativeai as genai
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
-# 1. Configuración
+# 1. Configuración de Entorno
 load_dotenv()
-# Configura la API con la clave guardada en GitHub Secrets
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# CORRECCIÓN DEFINITIVA: Usamos el nombre estándar del modelo para evitar el error 404
+# CORRECCIÓN FINAL: Usamos el nombre de modelo estándar para máxima estabilidad
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 2. Lógica de Negocio (IA)
+# 2. Inteligencia de Negocio (Prompt depurado)
 def analizar_lead(datos_lead):
-    # Instrucciones limpias basadas en el Brochure 2025
     system_instruction = """
     Eres el Asistente IA de Elevare Consulting.
     Analiza prospectos para el fondo CORFO 'Desarrolla Inversión'.
-    REGLAS:
-    - Cofinanciamiento: 60% del proyecto.
-    - Tope: $50 millones.
-    - Foco: Región del Biobío.
-    - Garantía: Menciona la Repostulación Gratuita.
-    - Caso de Éxito Metalmecánico: Chirino Steel SpA ($61.2MM).
-    - Firma: Carlos Chozas O., Ingeniero Civil Industrial (MBA).
+    
+    REGLAS DE NEGOCIO:
+    1. Cofinanciamiento: 60% del proyecto.
+    2. Tope de Subsidio: $50 millones.
+    3. Foco Geográfico: Región del Biobío.
+    4. Garantía: Ofrecer siempre la 'Repostulación Gratuita'.
+    5. Casos de Éxito:
+       - Si es Metalmecánico: Mencionar a Chirino Steel SpA ($61.2MM).
+       - Si es Energía/Otros: Mencionar Ingeniería Quantum ($32.5MM).
+    6. Firma: Carlos Chozas O., Ingeniero Civil Industrial (MBA).
     """
-    prompt = f"{system_instruction}\n\nAnaliza este lead: {datos_lead}"
+    
+    prompt = f"{system_instruction}\n\nAnaliza este lead y redacta el correo de propuesta: {datos_lead}"
+    
     try:
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Error al generar propuesta IA: {str(e)}"
+        return f"Error generando respuesta IA: {str(e)}"
 
-# 3. Lógica de Validación (Matemática)
+# 3. Validación Técnica (Matemática limpia sin caracteres extraños)
 def evaluar_aptitud_corfo(datos_lead):
     es_apto = True
     observaciones = []
 
     # Validación Regional
-    if "Biobío" not in datos_lead.get("region", ""):
+    region_cliente = datos_lead.get("region", "")
+    if "Biobío" not in region_cliente and "Biobio" not in region_cliente:
         es_apto = False
-        observaciones.append("Fuera de la Región del Biobío.")
+        observaciones.append("Empresa fuera de la región foco (Biobío).")
 
-    # Validación Financiera (CORREGIDO: Sin caracteres extraños)
-    inversion = float(datos_lead.get("inversion", 0))
-    subsidio_estimado = inversion * 0.60
-    
-    if subsidio_estimado > 50000000:
-        observaciones.append(f"El subsidio calculado (${subsidio_estimado:,.0f}) supera el tope de $50MM.")
+    # Validación Financiera
+    try:
+        # Aseguramos que la inversión se trate como número puro
+        inversion = float(datos_lead.get("inversion", 0))
+        subsidio_estimado = inversion * 0.60
+        
+        if subsidio_estimado > 50000000:
+            observaciones.append(f"El subsidio calculado (${subsidio_estimado:,.0f}) supera el tope de $50MM.")
+    except ValueError:
+        observaciones.append("Error en el formato del monto de inversión.")
 
     return {"apto": es_apto, "notas": observaciones}
 
-# 4. Envío de Correo
+# 4. Motor de Envío de Correos
 def enviar_correo_crm(destinatario, asunto, cuerpo):
     msg = EmailMessage()
     msg.set_content(cuerpo)
@@ -66,12 +74,12 @@ def enviar_correo_crm(destinatario, asunto, cuerpo):
             smtp.send_message(msg)
         return "Correo enviado exitosamente"
     except Exception as e:
-        return f"Error de envío: {str(e)}"
+        return f"Fallo en el envío: {str(e)}"
 
 # 5. Ejecución de Prueba
 if __name__ == "__main__":
-    # Datos de prueba reales (Maestranza Biobío)
-    lead_ejemplo = {
+    # Datos de prueba (Caso Real: Maestranza Biobío)
+    lead_test = {
         "empresa": "Maestranza Biobío Limitada",
         "representante": "Roberto González",
         "rubro": "Metalmecánico",
@@ -80,15 +88,19 @@ if __name__ == "__main__":
         "correo": os.getenv("EMAIL_USER") # Se envía a tu propio correo para validar
     }
 
-    print(f"1. Evaluando aptitud para {lead_ejemplo['empresa']}...")
-    aptitud = evaluar_aptitud_corfo(lead_ejemplo)
-    print(f"Resultado técnico: {aptitud}")
-
-    print("2. Redactando correo con IA...")
-    cuerpo_mail = analizar_lead(lead_ejemplo)
-
-    print("3. Enviando correo...")
-    asunto = f"Propuesta CORFO: {lead_ejemplo['empresa']}"
-    resultado = enviar_correo_crm(lead_ejemplo["correo"], asunto, cuerpo_mail)
+    print(f"--- Iniciando CRM para {lead_test['empresa']} ---")
     
-    print(f"--- {resultado} ---")
+    # Paso 1: Evaluar
+    evaluacion = evaluar_aptitud_corfo(lead_test)
+    print(f"Estado de Aptitud: {'APTO' if evaluacion['apto'] else 'NO APTO'}")
+    
+    # Paso 2: Redactar
+    print("Generando propuesta con IA...")
+    propuesta = analizar_lead(lead_test)
+    
+    # Paso 3: Enviar
+    print("Enviando correo...")
+    asunto = f"Oportunidad CORFO para {lead_test['empresa']}"
+    resultado = enviar_correo_crm(lead_test["correo"], asunto, propuesta)
+    
+    print(f"Resultado final: {resultado}")
