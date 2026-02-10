@@ -40,3 +40,24 @@ def enviar_correo_crm(destinatario, asunto, cuerpo):
 # lead_ejemplo = {...} 
 # respuesta = analizar_lead(lead_ejemplo)
 # enviar_correo_crm("cliente@correo.com", "Propuesta Elevare", respuesta)
+
+# --- BLOQUE DE PRUEBA REAL ---
+if __name__ == "__main__":
+    # 1. Datos del Lead de prueba (Biobío)
+    lead_test = {
+        "empresa": "Maestranza Biobío Limitada",
+        "representante": "Roberto González",
+        "rubro": "Metalmecánico",
+        "inversion": 60000000,
+        "correo": "TU_CORREO_DE_PRUEBA@ejemplo.com" # Cambia esto por tu correo para probar
+    }
+
+    print("Generando propuesta con IA...")
+    propuesta = analizar_lead(lead_test)
+    
+    print("Enviando correo...")
+    # El asunto incluye la personalización que vimos en AI Studio
+    asunto_test = f"Impulsa {lead_test['empresa']}: Financiamiento CORFO"
+    
+    resultado = enviar_correo_crm(lead_test['correo'], asunto_test, propuesta)
+    print(resultado)
