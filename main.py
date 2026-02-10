@@ -61,3 +61,29 @@ if __name__ == "__main__":
     
     resultado = enviar_correo_crm(lead_test['correo'], asunto_test, propuesta)
     print(resultado)
+
+def evaluar_aptitud_corfo(datos_lead):
+    # Criterios basados en el Brochure 2025
+    es_apto = True
+    observaciones = []
+
+    # 1. Validación de Región (Foco Biobío)
+    if "Biobío" not in datos_lead.get("region", ""):
+        es_apto = False
+        observaciones.append("Fuera de la Región del Biobío (Foco principal de la consultora).") [cite: 6, 56]
+
+    # 2. Validación de Monto (Tope $50MM de subsidio)
+    subsidio_estimado = datos_lead.get("inversion", 0) * 0.60 [cite: 44, 45]
+    if subsidio_estimado > 50000000:
+        observaciones.append(f"Subsidio estimado (${subsidio_estimado:,.0f}) supera el tope de $50MM.") [cite: 47]
+
+    # 3. Validación de Rubro Estratégico
+    rubros_exito = ["Metalmecánico", "Energético"] [cite: 55]
+    if datos_lead.get("rubro") not in rubros_exito:
+        observaciones.append("Rubro no coincide con casos de éxito recientes (requiere análisis manual).") [cite: 51, 55]
+
+    return {
+        "apto": es_apto,
+        "puntuacion": "ALTA" if es_apto else "REVISIÓN",
+        "notas": observaciones
+    }
