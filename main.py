@@ -1,6 +1,6 @@
 import os
 import smtplib
-import sys # Vital para reportar errores a GitHub
+import sys
 import google.generativeai as genai
 from email.message import EmailMessage
 from dotenv import load_dotenv
@@ -8,7 +8,13 @@ from dotenv import load_dotenv
 # 1. Configuración
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+# SOLUCIÓN: Usamos el nombre específico de versión para evitar errores 404
+# Si este fallara, 'gemini-pro' es el respaldo universal.
+try:
+    model = genai.GenerativeModel('gemini-1.5-flash-001')
+except:
+    model = genai.GenerativeModel('gemini-pro')
 
 # 2. IA Generativa (Prompt Elevare)
 def analizar_lead(datos_lead):
@@ -29,7 +35,7 @@ def analizar_lead(datos_lead):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Error IA: {str(e)}"
+        return f"Error generando texto IA: {str(e)}"
 
 # 3. Validación Técnica
 def evaluar_aptitud_corfo(datos_lead):
@@ -49,7 +55,7 @@ def evaluar_aptitud_corfo(datos_lead):
 
     return {"apto": es_apto, "notas": observaciones}
 
-# 4. Envío de Correo (Con Reporte de Error Real)
+# 4. Envío de Correo
 def enviar_correo_crm(destinatario, asunto, cuerpo):
     msg = EmailMessage()
     msg.set_content(cuerpo)
@@ -58,16 +64,12 @@ def enviar_correo_crm(destinatario, asunto, cuerpo):
     msg['To'] = destinatario
 
     try:
-        print(f"Conectando a servidor SMTP...")
-        # Aquí se usa la Contraseña de Aplicación que pusiste en Secrets
         with smtplib.SMTP_SSL(os.getenv("EMAIL_HOST"), 465) as smtp:
             smtp.login(os.getenv("EMAIL_USER"), os.getenv("EMAIL_PASSWORD"))
             smtp.send_message(msg)
         return "EXITO"
     except Exception as e:
-        # Imprime el error para que lo leamos en los logs
-        print(f"ERROR DETALLADO: {e}")
-        return "FALLO"
+        return f"ERROR_FATAL: {str(e)}"
 
 # 5. Ejecución
 if __name__ == "__main__":
@@ -80,17 +82,13 @@ if __name__ == "__main__":
         "correo": os.getenv("EMAIL_USER") 
     }
 
-    print("--- 1. Evaluando ---")
-    evaluacion = evaluar_aptitud_corfo(lead_test)
-    
-    print("--- 2. Generando Texto ---")
+    print("--- Generando Propuesta ---")
     cuerpo = analizar_lead(lead_test)
 
-    print("--- 3. Enviando Correo ---")
-    resultado = enviar_correo_crm(lead_test["correo"], f"Test CORFO {lead_test['empresa']}", cuerpo)
+    print("--- Enviando Correo ---")
+    resultado = enviar_correo_crm(lead_test["correo"], f"Propuesta CORFO {lead_test['empresa']}", cuerpo)
     
-    print(f"RESULTADO FINAL: {resultado}")
-
-    # SI FALLÓ, OBLIGAMOS A GITHUB A MARCAR ERROR ROJO
-    if resultado == "FALLO":
+    print(f"RESULTADO: {resultado}")
+    
+    if "ERROR_FATAL" in resultado:
         sys.exit(1)
